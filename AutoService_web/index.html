@@ -1,0 +1,50 @@
+﻿<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>СТО - Бронювання послуг</title>
+    <style>
+        body {
+            font-family: Arial;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #f0f0f0;
+        }
+
+        button {
+            padding: 10px 15px;
+            cursor: pointer;
+            background: #d32f2f;
+            color: white;
+            border: none;
+            font-weight: bold;
+        }
+
+        li {
+            margin: 10px 0;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Послуги автосервісу</h1>
+    <button id="loadBtn">Завантажити прайс-лист</button>
+    <ul id="itemsList"></ul>
+
+    <script>
+        document.getElementById('loadBtn').addEventListener('click', async () => {
+            const response = await fetch('http://localhost:5053/items');
+            const items = await response.json();
+
+            const list = document.getElementById('itemsList');
+            list.innerHTML = '';
+
+            items.forEach(item => {
+                const li = document.createElement('li');
+                li.textContent = `${item.id}: ${item.name}`;
+                list.appendChild(li);
+            });
+        });
+    </script>
+</body>
+</html>
