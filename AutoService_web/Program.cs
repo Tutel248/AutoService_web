@@ -4,7 +4,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddCors();
 builder.Services.AddDbContext<AppDbContext>(opt =>
-    opt.UseSqlite("Data Source=autoservice.db"));
+    opt.UseSqlite(@"Data Source=C:\Users\yuriy\source\repos\AutoService_web\autoservice.db"));
 
 var app = builder.Build();
 app.UseCors(x => x.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
