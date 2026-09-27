@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using AutoService_web.Domain;
+using AutoService_web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddCors();
 builder.Services.AddDbContext<AppDbContext>(opt =>
-    opt.UseSqlite(@"Data Source=C:\Users\yuriy\source\repos\AutoService_web\autoservice.db"));
+    opt.UseSqlite(@"Data Source=autoservice.db"));
+
+builder.Services.AddScoped<CatalogService>();
 
 var app = builder.Build();
 app.UseCors(x => x.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
@@ -17,26 +21,53 @@ using (var scope = app.Services.CreateScope())
     {
         db.Items.AddRange(
             new Item { Name = "Діагностика" },
-            new Item { Name = "Ремонт двигуна" },
-            new Item { Name = "Ремонт підвіски" },
-            new Item { Name = "Кузовні роботи" }
+            new Item { Name = "Ремонт двигуна" }
         );
         db.SaveChanges();
     }
 }
 
-app.MapGet("/items", (AppDbContext db) => db.Items.ToList());
+
+app.MapGet("/health", () => Results.Ok("ok"));
+
+app.MapGet("/services", (CatalogService service) => Results.Ok(service.GetAll()));
+
+app.MapGet("/services/{id}", (int id, CatalogService service) =>
+{
+    var result = service.GetById(id);
+    return result != null ? Results.Ok(result) : Results.NotFound(new ErrorResponse("Not Found", "ITEM_NOT_FOUND"));
+});
+
+app.MapPost("/services", (ServiceItemRequest req, CatalogService service) =>
+{
+    try
+    {
+        var result = service.Create(req);
+        return Results.Created($"/services/{result.Id}", result);
+    }
+    catch (ArgumentException)
+    {
+        return Results.BadRequest(new ErrorResponse("Validation Error", "NAME_REQUIRED"));
+    }
+});
+
+app.MapPut("/services/{id}", (int id, ServiceItemRequest req, CatalogService service) =>
+{
+    try
+    {
+        var result = service.Update(id, req);
+        return result != null ? Results.Ok(result) : Results.NotFound(new ErrorResponse("Not Found", "ITEM_NOT_FOUND"));
+    }
+    catch (ArgumentException)
+    {
+        return Results.BadRequest(new ErrorResponse("Validation Error", "NAME_REQUIRED"));
+    }
+});
+
+app.MapDelete("/services/{id}", (int id, CatalogService service) =>
+{
+    var success = service.Delete(id);
+    return success ? Results.NoContent() : Results.NotFound(new ErrorResponse("Not Found", "ITEM_NOT_FOUND"));
+});
 
 app.Run();
-
-class Item
-{
-    public int Id { get; set; }
-    public string Name { get; set; }
-}
-
-class AppDbContext : DbContext
-{
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
-    public DbSet<Item> Items { get; set; }
-}

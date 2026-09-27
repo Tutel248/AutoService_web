@@ -33,7 +33,7 @@
 
     <script>
         document.getElementById('loadBtn').addEventListener('click', async () => {
-            const response = await fetch('http://localhost:5053/items');
+            const response = await fetch('http://localhost:5053/services');
             const items = await response.json();
 
             const list = document.getElementById('itemsList');

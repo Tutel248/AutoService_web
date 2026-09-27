@@ -1,0 +1,111 @@
+﻿openapi: 3.0.3
+info:
+  title: AutoService API
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+  /services:
+    get:
+      summary: Отримати всі послуги
+      responses:
+        '200':
+          description: Список послуг
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ServiceItemResponse'
+    post:
+      summary: Додати послугу
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceItemRequest'
+      responses:
+        '201':
+          description: Створено
+  /services/{id}:
+    get:
+      summary: Деталі послуги
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успіх
+        '404':
+          description: Не знайдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      summary: Оновити послугу
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceItemRequest'
+      responses:
+        '200':
+          description: Оновлено
+        '400':
+          description: Помилка валідації
+    delete:
+      summary: Видалити послугу
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Видалено
+        '404':
+          description: Не знайдено
+components:
+  schemas:
+    ServiceItemRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: "Заміна мастила"
+    ServiceItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: "Заміна мастила"
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "ValidationError"
+        code:
+          type: string
+          example: "NAME_REQUIRED"
