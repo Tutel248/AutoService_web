@@ -4,7 +4,6 @@ namespace AutoService_web.Services;
 
 public record ServiceItemRequest(string Name);
 public record ServiceItemResponse(int Id, string Name);
-public record ErrorResponse(string Error, string Code);
 
 public class CatalogService
 {

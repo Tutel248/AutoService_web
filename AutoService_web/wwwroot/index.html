@@ -1,0 +1,320 @@
+﻿<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoService</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #0d6efd;
+            font-size: 22px;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+
+        .banner {
+            background-color: #dc3545;
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .banner-text {
+            font-weight: 600;
+        }
+
+        .card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+            .card h3 {
+                margin-top: 0;
+                font-size: 16px;
+                color: #495057;
+            }
+
+        .form-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-primary {
+            background: #0d6efd;
+            color: white;
+        }
+
+            .btn-primary:hover {
+                background: #0b5ed7;
+            }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+            .btn-secondary:hover {
+                background: #5c636a;
+            }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #000;
+        }
+
+            .btn-warning:hover {
+                background: #ffca2c;
+            }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+            .btn-danger:hover {
+                background: #bb2d3b;
+            }
+
+        button:disabled {
+            background: #adb5bd !important;
+            cursor: not-allowed;
+            opacity: 0.65;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            background: #e9ecef;
+            padding: 10px 15px;
+            border-radius: 4px;
+        }
+
+        .stats-item span {
+            font-weight: bold;
+        }
+
+        pre {
+            background: #212529;
+            color: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            max-height: 320px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AutoService </h1>
+
+        <div id="degradedBanner" class="banner">
+            <span class="banner-text">Сервіс перевантажено (Degraded Mode). Кнопки створення заблоковано!</span>
+            <button id="healthBtn" class="btn-warning">Перевірити /health (таймаут 1с)</button>
+        </div>
+
+        <div class="stats">
+            <div class="stats-item">Послідовні збої: <span id="failureCount">0</span>/3</div>
+            <div class="stats-item">Режим системи: <span id="modeStatus" style="color: green;">Нормальний</span></div>
+        </div>
+
+        <div class="card">
+            <h3>1. Створення замовлення (POST /orders)</h3>
+            <div class="form-group">
+                <input type="text" id="orderTitle" value="Заміна мастила" placeholder="Введіть назву послуги..." />
+                <button id="submitBtn" class="btn-primary">Створити замовлення</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>2. Тестові сценарії практики</h3>
+            <div class="form-group">
+                <button id="doubleClickBtn" class="btn-secondary">Симуляція подвійного кліку (Promise.all)</button>
+                <button id="checkHealthManualBtn" class="btn-secondary">Перевірити /health (AbortController 1s)</button>
+                <button id="simFailuresBtn" class="btn-danger">Симулювати 3 збої (Увімкнути Degraded)</button>
+            </div>
+        </div>
+
+        <h3>Лог відповідей сервера:</h3>
+        <pre id="log">Логи порожні...</pre>
+    </div>
+
+    <script type="module">
+        import { fetchWithResilience } from "./js/http.js";
+        import { getOrReuseKey } from "./js/idempotency.js";
+
+        let failures = 0;
+
+        function updateUI() {
+            const isDegraded = failures >= 3;
+            const banner = document.getElementById("degradedBanner");
+            const submitBtn = document.getElementById("submitBtn");
+            const doubleClickBtn = document.getElementById("doubleClickBtn");
+            const failureCountEl = document.getElementById("failureCount");
+            const modeStatusEl = document.getElementById("modeStatus");
+
+            failureCountEl.innerText = failures;
+
+            if (isDegraded) {
+                banner.style.display = "flex";
+                submitBtn.disabled = true;
+                doubleClickBtn.disabled = true;
+                modeStatusEl.innerText = "Degraded (Обмежений)";
+                modeStatusEl.style.color = "red";
+            } else {
+                banner.style.display = "none";
+                submitBtn.disabled = false;
+                doubleClickBtn.disabled = false;
+                modeStatusEl.innerText = "Нормальний";
+                modeStatusEl.style.color = "green";
+            }
+        }
+
+        function logMsg(msg, data = null) {
+            const logEl = document.getElementById("log");
+            const time = new Date().toLocaleTimeString();
+            let text = `[${time}] ${msg}`;
+            if (data) {
+                text += "\n" + JSON.stringify(data, null, 2);
+            }
+            logEl.innerText = text + "\n\n" + (logEl.innerText === "Логи порожні..." ? "" : logEl.innerText);
+        }
+
+        document.getElementById("submitBtn").addEventListener("click", async () => {
+            const title = document.getElementById("orderTitle").value || "Без назви";
+            const payload = { title };
+            const key = await getOrReuseKey(payload);
+
+            try {
+                const res = await fetchWithResilience("/orders", {
+                    method: "POST",
+                    body: JSON.stringify(payload),
+                    idempotencyKey: key,
+                    retry: { retries: 2, baseDelayMs: 300, timeoutMs: 3500 }
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    failures = 0;
+                    logMsg(`УСПІХ (${res.status}) [RequestId: ${data.requestId || 'N/A'}]`, data);
+                } else {
+                    failures++;
+                    logMsg(`ПОМИЛКА СЕРВЕРА (${res.status})`, data);
+                }
+            } catch (err) {
+                failures++;
+                logMsg(`ЗБОЙ КЛІЄНТА / ТАЙМАУТ: ${err.message}`);
+            }
+            updateUI();
+        });
+
+        document.getElementById("doubleClickBtn").addEventListener("click", async () => {
+            const payload = { title: "Паралельне замовлення" };
+            const key = await getOrReuseKey(payload);
+
+            logMsg("Відправка 2 паралельних запитів з однаковим Idempotency-Key...");
+
+            try {
+                const [res1, res2] = await Promise.all([
+                    fetchWithResilience("/orders", { method: "POST", body: JSON.stringify(payload), idempotencyKey: key }),
+                    fetchWithResilience("/orders", { method: "POST", body: JSON.stringify(payload), idempotencyKey: key })
+                ]);
+
+                const d1 = await res1.json();
+                const d2 = await res2.json();
+
+                logMsg("РЕЗУЛЬТАТ ПАРАЛЕЛЬНИХ ЗАПИТІВ (обидва мають віддати один і той самий id):", {
+                    request_1: { status: res1.status, body: d1 },
+                    request_2: { status: res2.status, body: d2 }
+                });
+            } catch (err) {
+                logMsg(`ПОМИЛКА ПАРАЛЕЛЬНОГО ТЕСТУ: ${err.message}`);
+            }
+        });
+
+        async function doHealthCheck() {
+            try {
+                const res = await fetchWithResilience("/health", {
+                    method: "GET",
+                    retry: { retries: 0, timeoutMs: 1000 }
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    failures = 0;
+                    logMsg("HEALTH CHECK УСПІШНИЙ! Degraded mode вимкнено.", data);
+                } else {
+                    logMsg(`HEALTH CHECK НЕ ПРОЙШОВ (${res.status})`);
+                }
+            } catch (err) {
+                logMsg(`HEALTH CHECK СКАСОВАНО (Таймаут > 1с або помилка): ${err.message}`);
+            }
+            updateUI();
+        }
+
+        document.getElementById("healthBtn").addEventListener("click", doHealthCheck);
+        document.getElementById("checkHealthManualBtn").addEventListener("click", doHealthCheck);
+
+        document.getElementById("simFailuresBtn").addEventListener("click", () => {
+            failures = 3;
+            logMsg("СИМУЛЯЦІЯ: Встановлено 3 послідовні збої. Увімкнено Degraded Mode.");
+            updateUI();
+        });
+    </script>
+</body>
+</html>

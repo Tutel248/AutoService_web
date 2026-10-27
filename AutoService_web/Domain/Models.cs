@@ -26,3 +26,12 @@ public class Appointment
         IsConfirmed = true;
     }
 }
+
+public record ErrorResponse(
+    string Error,
+    string? Code = null,
+    string? Details = null,
+    string? RequestId = null
+);
+
+public record Order(string Id, string Title);
