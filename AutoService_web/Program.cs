@@ -37,6 +37,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// Correlation ID (X-Request-Id)
 app.Use(async (context, next) =>
 {
     var requestId = context.Request.Headers["X-Request-Id"].FirstOrDefault() ?? Guid.NewGuid().ToString();
@@ -45,6 +46,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// Simple Rate Limiter
 var rateStore = new ConcurrentDictionary<string, (int Count, DateTime Ts)>();
 app.Use(async (context, next) =>
 {
@@ -72,6 +74,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// Fault & Delay Injection
 app.Use(async (context, next) =>
 {
     if (context.Request.Path.Value?.Equals("/orders", StringComparison.OrdinalIgnoreCase) == true
@@ -102,8 +105,10 @@ app.Use(async (context, next) =>
 
 app.MapGet("/", () => Results.File(Path.Combine(builder.Environment.WebRootPath, "index.html"), "text/html"));
 
+// Health Check
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
+// Ідемпотентний POST /orders
 app.MapPost("/orders", (HttpContext ctx, IdempotencyService idemService, OrderCreateDto dto) =>
 {
     var reqId = ctx.Items["RequestId"]?.ToString();
