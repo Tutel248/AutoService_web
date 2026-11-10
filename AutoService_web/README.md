@@ -93,3 +93,31 @@ docker compose down
 * **Web Frontend:** `http://localhost:3000`
 * **Backend API:** `http://localhost:8080`
 * **PostgreSQL Database:** `localhost:5432` (User: `postgres`, DB: `autoservicedb`)
+
+# CI/CD на GitHub Actions
+
+![CI/CD Pipeline](https://github.com/<Tutel248>/AutoService_web/actions/workflows/ci-cd.yml/badge.svg)
+
+## CI/CD та Delivery (GHCR)
+
+У репозиторії налаштовано повноцінний автоматичний pipeline через GitHub Actions (`.github/workflows/ci-cd.yml`).
+
+### Процес CI (Continuous Integration):
+* Автоматичний запуск при `push` та `pull_request` у гілку `main`.
+* Встановлення середовища .NET з кешуванням залежностей.
+* Компіляція розв'язку та запуск unit-тестів (`dotnet test`).
+* Завантаження TRX-артефактів тестування та генерація **Job Summary**.
+
+### Процес CD (Continuous Delivery):
+Збірка та публікація Docker-образів двох сервісів у **GitHub Container Registry (GHCR)**:
+1. **API Сервіс:** `ghcr.io/<Tutel248>/autoservice-api:latest` (і `sha-<commit>`)
+2. **Web Frontend:** `ghcr.io/<Tutel248>/autoservice-web:latest` (і `sha-<commit>`)
+
+---
+
+## Виконані Style Points:
+- [x] **Семантичне тегування:** Використання тегів `latest`, `sha-<commit>` та `vX.Y.Z` через `docker/metadata-action`.
+- [x] **Job Summary:** Динамічний генератор Markdown-звіту про стан збірки на сторінці виконання Workflow.
+- [x] **Dependabot:** Файл конфігурації `.github/dependabot.yml` для автоматичного відстеження оновлень NuGet та Actions.
+- [x] **Посилений контроль дозволів та Concurrency:** Явні `permissions` (`packages: write`) та `concurrency` з `cancel-in-progress: true`.
+- [x] **Trivy Security Scan:** Перевірка згенерованих Docker-образів на вразливості з параметром `exit-code: 0`.

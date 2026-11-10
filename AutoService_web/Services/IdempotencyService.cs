@@ -7,7 +7,8 @@ public class IdempotencyService
 {
     private readonly ConcurrentDictionary<string, Order> _store = new();
 
-    public bool TryGet(string key, out Order? order) => _store.TryGetValue(key, out order);
-
-    public void Set(string key, Order order) => _store[key] = order;
+    public Order GetOrAdd(string key, Func<Order> createFunc)
+    {
+        return _store.GetOrAdd(key, _ => createFunc());
+    }
 }

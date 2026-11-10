@@ -117,13 +117,7 @@ app.MapPost("/orders", (HttpContext ctx, IdempotencyService idemService, OrderCr
         return Results.Json(new ErrorResponse("idempotency_key_required", null, null, reqId), statusCode: 400);
     }
 
-    if (idemService.TryGet(key!, out var existingOrder))
-    {
-        return Results.Json(new { existingOrder!.Id, existingOrder.Title, requestId = reqId }, statusCode: 201);
-    }
-
-    var order = new Order("ord_" + Guid.NewGuid().ToString()[..8], dto.Title ?? "Untitled");
-    idemService.Set(key!, order);
+    var order = idemService.GetOrAdd(key!, () => new Order("ord_" + Guid.NewGuid().ToString()[..8], dto.Title ?? "Untitled"));
 
     return Results.Json(new { order.Id, order.Title, requestId = reqId }, statusCode: 201);
 });
