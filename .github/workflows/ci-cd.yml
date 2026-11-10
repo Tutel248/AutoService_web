@@ -81,7 +81,7 @@ jobs:
 
       - name: Extract Metadata for API
         id: meta-api
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/autoservice-api
           tags: |
@@ -100,7 +100,7 @@ jobs:
 
       - name: Extract Metadata for Web Frontend
         id: meta-web
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository_owner }}/autoservice-web
           tags: |
