@@ -96,7 +96,7 @@ docker compose down
 
 # CI/CD на GitHub Actions
 
-![CI/CD Pipeline](https://github.com/<Tutel248>/AutoService_web/actions/workflows/ci-cd.yml/badge.svg)
+![CI/CD Pipeline](https://github.com/Tutel248/AutoService_web/actions/workflows/ci-cd.yml/badge.svg)
 
 ## CI/CD та Delivery (GHCR)
 
