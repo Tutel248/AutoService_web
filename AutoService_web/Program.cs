@@ -2,8 +2,54 @@ using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using AutoService_web.Domain;
 using AutoService_web.Services;
+using System.Diagnostics;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var serviceName = "autoservice-api";
+var otlpEndpoint = "http://localhost:4318";
+
+// Джерело для власних бізнес-атрибутів у трейсах
+var appActivitySource = new ActivitySource(serviceName);
+
+// 1. Налаштування Traces та Metrics
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource.AddService(serviceName))
+    .WithTracing(tracing => tracing
+        .AddSource(serviceName)
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddOtlpExporter(opt =>
+        {
+            opt.Endpoint = new Uri($"{otlpEndpoint}/v1/traces");
+            opt.Protocol = OtlpExportProtocol.HttpProtobuf;
+        }))
+    .WithMetrics(metrics => metrics
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddOtlpExporter(opt =>
+        {
+            opt.Endpoint = new Uri($"{otlpEndpoint}/v1/metrics");
+            opt.Protocol = OtlpExportProtocol.HttpProtobuf;
+        }))
+    .WithLogging(logging => logging
+        .AddOtlpExporter(opt =>
+        {
+            opt.Endpoint = new Uri($"{otlpEndpoint}/v1/logs");
+            opt.Protocol = OtlpExportProtocol.HttpProtobuf;
+        }));
+
+// Щоб у Loki передавався сам текст повідомлення, а не лише шаблон
+builder.Logging.AddOpenTelemetry(options =>
+{
+    options.IncludeFormattedMessage = true;
+    options.IncludeScopes = true;
+});
 
 builder.Services.AddCors();
 builder.Services.AddDbContext<AppDbContext>(opt =>
@@ -107,6 +153,37 @@ app.MapGet("/", () => Results.File(Path.Combine(builder.Environment.WebRootPath,
 
 // Health Check
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+// Ендпоінт із кастомними атрибутами для трейсів та логів
+app.MapGet("/api/orders/{id:int}", (int id, ILogger<Program> logger) =>
+{
+    Activity.Current?.SetTag("order.id", id);
+    Activity.Current?.SetTag("service.category", "diagnostics");
+
+    logger.LogInformation("Отримано запит на замовлення СТО #{OrderId}", id);
+    return Results.Ok(new { OrderId = id, Status = "InProgress", Car = "Opel Zafira B" });
+});
+
+// Ендпоінт для симуляції помилок (500) та затримок (Latency) при перевірці алертів
+app.MapGet("/api/chaos", async (ILogger<Program> logger, bool fail = false, int delayMs = 0) =>
+{
+    Activity.Current?.SetTag("chaos.fail", fail);
+    Activity.Current?.SetTag("chaos.delay_ms", delayMs);
+
+    if (delayMs > 0)
+    {
+        logger.LogWarning("Штучна затримка обробки запиту: {DelayMs} мс", delayMs);
+        await Task.Delay(delayMs);
+    }
+
+    if (fail)
+    {
+        logger.LogError("Критична помилка сервісу СТО під час обробки запиту!");
+        return Results.Problem("Simulated AutoService internal error", statusCode: 500);
+    }
+
+    return Results.Ok(new { status = "ok", delayMs });
+});
 
 // Ідемпотентний POST /orders
 app.MapPost("/orders", (HttpContext ctx, IdempotencyService idemService, OrderCreateDto dto) =>

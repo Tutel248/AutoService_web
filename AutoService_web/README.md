@@ -121,3 +121,34 @@ docker compose down
 - [x] **Dependabot:** Файл конфігурації `.github/dependabot.yml` для автоматичного відстеження оновлень NuGet та Actions.
 - [x] **Посилений контроль дозволів та Concurrency:** Явні `permissions` (`packages: write`) та `concurrency` з `cancel-in-progress: true`.
 - [x] **Trivy Security Scan:** Перевірка згенерованих Docker-образів на вразливості з параметром `exit-code: 0`.
+
+# Observability та моніторинг (OpenTelemetry + Grafana Stack)
+
+Для забезпечення спостережуваності (Observability) веб-сервісу **AutoService_web** (`service.name = "autoservice-api"`) інтегровано збір трьох сигналів телеметрії (**Traces**, **Metrics**, **Logs**) за стандартом **OpenTelemetry** з передачею даних по протоколу OTLP HTTP (`http://localhost:4318`) до стеку **OTEL Collector - Tempo / Prometheus / Loki - Grafana**.
+
+### 1. Інструментація застосунку
+
+У проєкт додано NuGet-пакети OpenTelemetry (`OpenTelemetry.Extensions.Hosting`, `OpenTelemetry.Instrumentation.AspNetCore`, `OpenTelemetry.Instrumentation.Http`, `OpenTelemetry.Exporter.OpenTelemetryProtocol`) та налаштовано експорт у `Program.cs`:
+* **Traces:** автоматичний трейсинг вхідних HTTP-запитів ASP.NET Core, вихідних HTTP-викликів та кастомні бізнес-атрибути спанів (`order.id`, `service.category`, `chaos.fail`, `chaos.delay_ms`) через `System.Diagnostics.Activity`.
+* **Metrics:** збір HTTP-метрик тривалості запитів, кількості звернень та розподілу статус-кодів (`http_server_request_duration_seconds_*`).
+* **Logs:** структуроване логування через `ILogger` із передачею форматованих повідомлень та прив'язкою до `TraceId` і `SpanId`.
+* **Тестовий ендпоінт:** додано маршрут `GET /api/chaos?fail=true&delayMs=1200` для перевірки коректності фіксації 500-х помилок, затримок та спрацювання алертів.
+
+### 2. Перевірка Трейсів (Tempo) та Логів (Loki)
+
+* **Трейси (Tempo):** фіксують повний життєвий цикл HTTP-запиту, час його виконання та вкладені бізнес-атрибути замовлення.  
+  ![Трейс у Tempo](docs/observability/01-tempo-trace.png)
+
+* **Логи (Loki):** зберігають структуровані події застосунку за фільтром `{exporter="OTLP"} |= "СТО"` з можливістю кореляції за `traceid`.  
+  ![Логи у Loki](docs/observability/02-loki-logs.png)
+
+### 3. RED-дашборд у Grafana
+
+Створено дашборд **`AutoService RED Dashboard`** (експортована конфігурація збережена у [`docs/autoservice-red-dashboard.json`](docs/autoservice-red-dashboard.json)), який відображає ключові метрики за методологією RED, потік логів та список активних алертів:
+
+### 4. Налаштування алертів та перевірка статусу Firing
+У розділі Grafana Alerting створено точку сповіщення (Contact point: AutoService-Ops) та два правила моніторингу з інтервалом оцінки 1m та періодом очікування Pending: 1m:
+
+* AutoService High 5xx Error Rate — спрацьовує, якщо частка 5xx-помилок перевищує 5% (IS ABOVE 5).
+
+* AutoService High p95 Latency — спрацьовує, якщо 95-й перцентиль затримки відповіді перевищує 0.5 с (IS ABOVE 0.5).
