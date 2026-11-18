@@ -152,3 +152,34 @@ docker compose down
 * AutoService High 5xx Error Rate — спрацьовує, якщо частка 5xx-помилок перевищує 5% (IS ABOVE 5).
 
 * AutoService High p95 Latency — спрацьовує, якщо 95-й перцентиль затримки відповіді перевищує 0.5 с (IS ABOVE 0.5).
+
+### 6. Контроль кардинальності метрик (Cardinality)
+
+Для запобігання вибуху кардинальності (*cardinality explosion*) у Prometheus використовуються лише мітки з низькою кардинальністю (`http_request_method`, `http_response_status_code`, шаблонізований `http_route`), тоді як висококардинальні ідентифікатори (`order.id`, `requestId`) передаються виключно в атрибути трейсів (Tempo) та тіло логів (Loki).
+
+#### Формули оцінки теоретичної кардинальності
+
+1. **Для звичайної метрики (Counter / Gauge):**
+   `C = |L1| * |L2| * ... * |Ln|`
+   де `|Li|` — кількість унікальних значень `i`-ї мітки.
+
+2. **Для гістограми (Histogram):**
+   `C_hist = (|L1| * |L2| * ... * |Ln|) * (B + 2)`
+   де `B` — кількість кошиків затримки (`le`), а `+ 2` — супутні лічильники `_sum` та `_count`.
+
+#### PromQL-запити для перевірки реальної кардинальності
+
+* **Кількість активних серій сервісу `autoservice-api`:**
+  ```promql
+  count(http_server_request_duration_seconds_count{service_name="autoservice-api"})
+  ```
+
+* **Кардинальність конкретної мітки (кількість унікальних статус-кодів):**
+  ```promql
+  count(count by (http_response_status_code) (http_server_request_duration_seconds_count))
+  ```
+
+* **Загальна кількість усіх активних серій у пам'яті Prometheus:**
+  ```promql
+  prometheus_tsdb_head_series
+  ```
